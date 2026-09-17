@@ -62,16 +62,20 @@ jobs:
           </html>
           EOF
 
-      - name: Create Capacitor config
+            - name: Create Capacitor config
         working-directory: app
         run: |
           cat > capacitor.config.json <<'EOF'
           {
             "appId": "com.telechat.app",
             "appName": "TeleChat",
-            "webDir": "android-web"
+            "webDir": "android-web",
+            "server": {
+              "androidScheme": "https"
+            }
           }
           EOF
+          
 
       - name: Add Android platform
         working-directory: app
