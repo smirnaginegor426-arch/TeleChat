@@ -39,4 +39,78 @@ jobs:
 
       - name: Install dependencies
         working-directory: app
-        run: npm install
+        run: npm instal
+
+      - name: Build original web app
+        working-directory: app
+        run: npm run build
+
+      - name: Show build output
+        working-directory: app
+        run: |
+          echo "=== Searching for index.html ==="
+          find . -maxdepth 6 -type f -name "index.html" -print
+
+      - name: Install Capacitor
+        working-directory: app
+        run: |
+          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+
+      - name: Prepare Capacitor
+        working-directory: app
+        run: |
+          rm -rf android-web
+          mkdir -p android-web
+
+          if [ -f ".vercel/output/static/index.html" ]; then
+            cp -a .vercel/output/static/. android-web/
+          elif [ -f "dist/index.html" ]; then
+            cp -a dist/. android-web/
+          elif [ -f "build/index.html" ]; then
+            cp -a build/. android-web/
+          elif [ -f "out/index.html" ]; then
+            cp -a out/. android-web/
+          else
+            echo "ERROR: index.html not found"
+            find . -maxdepth 6 -type f -name "index.html" -print
+            exit 1
+          fi
+
+          test -f android-web/index.html
+
+          cat > capacitor.config.json <<'EOF'
+          {
+            "appId": "com.telechat.app",
+            "appName": "TeleChat",
+            "webDir": "android-web",
+            "server": {
+              "androidScheme": "https"
+            }
+          }
+          EOF
+
+      - name: Add Android
+        working-directory: app
+        run: npx cap add android
+
+      - name: Sync Android
+        working-directory: app
+        run: npx cap sync android
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build APK
+        working-directory: app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TeleChat-Original-APK
+          path: app/android/app/build/outputs/apk/debug/app-debug.apk
