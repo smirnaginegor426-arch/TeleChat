@@ -15,10 +15,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Extract TeleChat project
-        run: |
-          rm -rf app
-          mkdir app
-          unzip -q grok-workspace.zip -d app
+  run: |
+    rm -rf app
+    mkdir app
+    unzip -q TeleChat-static.zip -d app
 
       - name: Check project
         working-directory: app
