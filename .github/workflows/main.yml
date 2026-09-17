@@ -30,7 +30,11 @@ jobs:
         run: |
           npm init -y
           npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
-
+      - name: Prepare web files
+        working-directory: app
+        run: |
+          mkdir -p android-web
+          cp index.html android-web/index.html
       - name: Create Capacitor config
         working-directory: app
         run: |
@@ -38,7 +42,7 @@ jobs:
           {
             "appId": "com.telechat.app",
             "appName": "TeleChat",
-            "webDir": ".",
+            "webDir": "android-web",
             "server": {
               "androidScheme": "https"
             }
