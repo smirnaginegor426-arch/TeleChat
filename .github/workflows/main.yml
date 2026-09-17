@@ -14,52 +14,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract TeleChat project
-  run: |
-    rm -rf app
-    mkdir app
-    unzip -q TeleChat-static.zip -d app
-
-      - name: Check project
-        working-directory: app
+      - name: Extract TeleChat
         run: |
-          test -f package.json
-          test -f package-lock.json
-          echo "package.json найден"
+          rm -rf app
+          mkdir app
+          unzip -q TeleChat-static.zip -d app
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install dependencies
-        working-directory: app
-        run: npm install
-
       - name: Install Capacitor
         working-directory: app
-        run: npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
-      - name: Prepare web files
-        working-directory: app
         run: |
-          mkdir -p android-web
-          cp -r .vercel/output/static/* android-web/ || true
-          cat > android-web/index.html <<'EOF'
-          <!doctype html>
-          <html lang="ru">
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-            <title>TeleChat</title>
-            <link rel="stylesheet" href="./assets/styles-917OWHr6.css">
-          </head>
-          <body>
-            <div id="root"></div>
-            <script type="module" src="./assets/index-Dw44iPF7.js"></script>
-            <script type="module" src="./assets/routes-BhoPbFU3.js"></script>
-          </body>
-          </html>
-          EOF
+          npm init -y
+          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
 
       - name: Create Capacitor config
         working-directory: app
@@ -68,14 +38,12 @@ jobs:
           {
             "appId": "com.telechat.app",
             "appName": "TeleChat",
-            "webDir": "android-web",
+            "webDir": ".",
             "server": {
               "androidScheme": "https"
             }
           }
           EOF
-
-          
 
       - name: Add Android platform
         working-directory: app
