@@ -14,34 +14,71 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Extract TeleChat project
+        run: |
+          rm -rf app
+          mkdir app
+          unzip -q grok-workspace.zip -d app
+
+      - name: Check project
+        working-directory: app
+        run: |
+          test -f package.json
+          test -f package-lock.json
+          echo "package.json найден"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Install dependencies
+        working-directory: app
         run: npm install
 
       - name: Install Capacitor
-        run: npm install @capacitor/core @capacitor/cli @capacitor/android
+        working-directory: app
+        run: npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
 
-      - name: Build TeleChat
-        run: npm run build
+      - name: Prepare web files
+        working-directory: app
+        run: |
+          mkdir -p android-web
+          cp -r .vercel/output/static/* android-web/ || true
+          cat > android-web/index.html <<'EOF'
+          <!doctype html>
+          <html lang="ru">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+            <title>TeleChat</title>
+            <link rel="stylesheet" href="./assets/styles-917OWHr6.css">
+          </head>
+          <body>
+            <div id="root"></div>
+            <script type="module" src="./assets/index-Dw44iPF7.js"></script>
+            <script type="module" src="./assets/routes-BhoPbFU3.js"></script>
+          </body>
+          </html>
+          EOF
 
       - name: Create Capacitor config
+        working-directory: app
         run: |
           cat > capacitor.config.json <<'EOF'
           {
             "appId": "com.telechat.app",
             "appName": "TeleChat",
-            "webDir": ".vercel/output/static"
+            "webDir": "android-web"
           }
           EOF
 
       - name: Add Android platform
+        working-directory: app
         run: npx cap add android
 
       - name: Sync Android
+        working-directory: app
         run: npx cap sync android
 
       - name: Setup Java
@@ -51,7 +88,7 @@ jobs:
           java-version: 17
 
       - name: Build APK
-        working-directory: android
+        working-directory: app/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
@@ -60,4 +97,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: TeleChat-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: app/android/app/build/outputs/apk/debug/app-debug.apk
