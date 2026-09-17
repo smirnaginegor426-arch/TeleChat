@@ -39,7 +39,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: app
-        run: npm instal
+        run: npm install
 
       - name: Build original web app
         working-directory: app
@@ -48,7 +48,15 @@ jobs:
       - name: Show build output
         working-directory: app
         run: |
-          echo "=== Searching for index.html ==="
+          echo "=== Project files ==="
+          ls -la
+
+          echo "=== Build directories ==="
+          find . -maxdepth 4 -type d \
+            \( -name ".output" -o -name "dist" -o -name "build" -o -name "out" -o -name ".vercel" \) \
+            -print
+
+          echo "=== index.html files ==="
           find . -maxdepth 6 -type f -name "index.html" -print
 
       - name: Install Capacitor
@@ -62,21 +70,41 @@ jobs:
           rm -rf android-web
           mkdir -p android-web
 
-          if [ -f ".vercel/output/static/index.html" ]; then
+          if [ -d ".output/public" ]; then
+            echo "Using .output/public"
+            cp -a .output/public/. android-web/
+
+          elif [ -d ".vercel/output/static" ]; then
+            echo "Using .vercel/output/static"
             cp -a .vercel/output/static/. android-web/
-          elif [ -f "dist/index.html" ]; then
+
+          elif [ -d "dist" ] && [ -f "dist/index.html" ]; then
+            echo "Using dist"
             cp -a dist/. android-web/
-          elif [ -f "build/index.html" ]; then
+
+          elif [ -d "build" ] && [ -f "build/index.html" ]; then
+            echo "Using build"
             cp -a build/. android-web/
-          elif [ -f "out/index.html" ]; then
+
+          elif [ -d "out" ] && [ -f "out/index.html" ]; then
+            echo "Using out"
             cp -a out/. android-web/
+
           else
-            echo "ERROR: index.html not found"
+            echo "ERROR: Web build output directory not found"
+            echo "Available directories:"
+            find . -maxdepth 4 -type d \
+              \( -name ".output" -o -name "dist" -o -name "build" -o -name "out" -o -name ".vercel" \) \
+              -print
+
+            echo "Available index.html files:"
             find . -maxdepth 6 -type f -name "index.html" -print
+
             exit 1
           fi
 
-          test -f android-web/index.html
+          echo "=== android-web contents ==="
+          find android-web -maxdepth 3 -type f | head -100
 
           cat > capacitor.config.json <<'EOF'
           {
