@@ -14,30 +14,54 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract TeleChat
+      - name: Extract original TeleChat
         run: |
           rm -rf app
           mkdir app
-          unzip -q TeleChat-static.zip -d app
+          unzip -q grok-workspace.zip -d app
+
+          # Если ZIP содержит одну вложенную папку — переносим её содержимое
+          if [ ! -f app/package.json ]; then
+            INNER=$(find app -mindepth 1 -maxdepth 1 -type d | head -n 1)
+            if [ -n "$INNER" ] && [ -f "$INNER/package.json" ]; then
+              cp -a "$INNER"/. app/
+            fi
+          fi
+
+          test -f app/package.json
+          test -f app/package-lock.json
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build original web app
+        working-directory: app
+        run: npm run build
 
       - name: Install Capacitor
         working-directory: app
         run: |
-          npm init -y
           npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
-      - name: Prepare web files
+
+      - name: Prepare Capacitor
         working-directory: app
         run: |
           mkdir -p android-web
-          cp index.html android-web/index.html
-      - name: Create Capacitor config
-        working-directory: app
-        run: |
+
+          if [ -d ".vercel/output/static" ]; then
+            cp -a .vercel/output/static/. android-web/
+          fi
+
+          test -f android-web/index.html
+
           cat > capacitor.config.json <<'EOF'
           {
             "appId": "com.telechat.app",
@@ -49,7 +73,7 @@ jobs:
           }
           EOF
 
-      - name: Add Android platform
+      - name: Add Android
         working-directory: app
         run: npx cap add android
 
@@ -72,5 +96,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TeleChat-APK
+          name: TeleChat-Original-APK
           path: app/android/app/build/outputs/apk/debug/app-debug.apk
