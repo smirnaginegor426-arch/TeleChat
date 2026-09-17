@@ -39,7 +39,6 @@ jobs:
       - name: Install Capacitor
         working-directory: app
         run: npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
-
       - name: Prepare web files
         working-directory: app
         run: |
@@ -62,7 +61,7 @@ jobs:
           </html>
           EOF
 
-            - name: Create Capacitor config
+      - name: Create Capacitor config
         working-directory: app
         run: |
           cat > capacitor.config.json <<'EOF'
@@ -75,6 +74,7 @@ jobs:
             }
           }
           EOF
+
           
 
       - name: Add Android platform
