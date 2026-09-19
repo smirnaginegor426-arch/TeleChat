@@ -13,10 +13,10 @@ jobs:
 
       - name: Extract TeleChat
         run: |
-          echo "=== ZIP files in repository ==="
-          find . -maxdepth 2 -type f -iname "*.zip" -print
+          echo "=== ZIP files ==="
+          find . -type f -iname "*.zip" -print
 
-          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" | head -n 1)
+          ZIP_FILE=$(find . -type f -iname "*.zip" | head -n 1)
 
           if [ -z "$ZIP_FILE" ]; then
             echo "ERROR: ZIP file not found!"
@@ -28,8 +28,42 @@ jobs:
           mkdir -p app
           unzip -q "$ZIP_FILE" -d app
 
-          echo "=== Extracted files ==="
-          find app -maxdepth 4 -type f | head -100
+          echo "=== Extracted structure ==="
+          find app -maxdepth 6 -type f | head -200
+
+      - name: Find TeleChat project
+        run: |
+          echo "=== Searching for build-android.sh ==="
+
+          BUILD_SCRIPT=$(find app -type f -name "build-android.sh" | head -n 1)
+
+          if [ -z "$BUILD_SCRIPT" ]; then
+            echo "ERROR: build-android.sh not found!"
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$BUILD_SCRIPT")
+
+          echo "Build script:"
+          echo "$BUILD_SCRIPT"
+
+          echo "Project directory:"
+          echo "$PROJECT_DIR"
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+          WEB_DIR="$PROJECT_DIR/web"
+
+          if [ ! -d "$WEB_DIR" ]; then
+            echo "ERROR: web directory not found:"
+            echo "$WEB_DIR"
+            exit 1
+          fi
+
+          echo "WEB_DIR=$WEB_DIR" >> "$GITHUB_ENV"
+
+          echo "=== Web directory ==="
+          ls -lah "$WEB_DIR"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -48,12 +82,13 @@ jobs:
           gradle-version: '9.5.1'
 
       - name: Install web dependencies
-        working-directory: app/TeleChat-CloudBuild/TeleChat-Android/web
+        working-directory: ${{ env.WEB_DIR }}
         run: |
+          echo "Installing dependencies..."
           npm install
 
       - name: Prepare Android build
-        working-directory: app/TeleChat-CloudBuild/TeleChat-Android
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           chmod +x build-android.sh
 
@@ -67,12 +102,18 @@ jobs:
           cat build-android.sh
 
       - name: Fix JVM target
-        working-directory: app/TeleChat-CloudBuild/TeleChat-Android
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          for p in Path("android").rglob("*.gradle.kts"):
+          android_dir = Path("android")
+
+          if not android_dir.exists():
+              print("ERROR: android directory not found!")
+              raise SystemExit(1)
+
+          for p in android_dir.rglob("*.gradle.kts"):
               s = p.read_text()
 
               if "compileOptions {" in s:
@@ -87,18 +128,19 @@ jobs:
               print("Patched:", p)
           PY
 
-      - name: Show Android configuration
-        working-directory: app/TeleChat-CloudBuild/TeleChat-Android
+      - name: Show project structure
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          echo "=== Android Gradle files ==="
-          find android -name "*.gradle.kts" -type f -print
+          echo "=== PROJECT ==="
+          pwd
 
-          echo "=== app/build.gradle.kts ==="
-          cat android/app/build.gradle.kts
+          echo "=== FILES ==="
+          find . -maxdepth 4 -type f | sort
 
       - name: Build Android
-        working-directory: app/TeleChat-CloudBuild/TeleChat-Android
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
+          echo "=== Starting Android build ==="
           ./build-android.sh
 
       - name: Find APK
