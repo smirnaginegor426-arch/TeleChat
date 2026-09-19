@@ -13,7 +13,23 @@ jobs:
 
       - name: Extract TeleChat
         run: |
-          unzip -q huesos.zip -d app
+          echo "=== ZIP files in repository ==="
+          find . -maxdepth 2 -type f -iname "*.zip" -print
+
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: ZIP file not found!"
+            exit 1
+          fi
+
+          echo "Using ZIP: $ZIP_FILE"
+
+          mkdir -p app
+          unzip -q "$ZIP_FILE" -d app
+
+          echo "=== Extracted files ==="
+          find app -maxdepth 4 -type f | head -100
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -70,3 +86,29 @@ jobs:
               p.write_text(s)
               print("Patched:", p)
           PY
+
+      - name: Show Android configuration
+        working-directory: app/TeleChat-CloudBuild/TeleChat-Android
+        run: |
+          echo "=== Android Gradle files ==="
+          find android -name "*.gradle.kts" -type f -print
+
+          echo "=== app/build.gradle.kts ==="
+          cat android/app/build.gradle.kts
+
+      - name: Build Android
+        working-directory: app/TeleChat-CloudBuild/TeleChat-Android
+        run: |
+          ./build-android.sh
+
+      - name: Find APK
+        run: |
+          echo "=== APK FILES ==="
+          find app -type f -name "*.apk" -print
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TeleChat-APK
+          path: app/**/*.apk
+          if-no-files-found: error
