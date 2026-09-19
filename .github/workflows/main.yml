@@ -2,9 +2,6 @@ name: Build TeleChat APK
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   build:
@@ -14,116 +11,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract original TeleChat
+      - name: Extract TeleChat
         run: |
-          rm -rf app
-          mkdir app
-          unzip -q grok-workspace.zip -d app
-
-          if [ ! -f app/package.json ]; then
-            INNER=$(find app -mindepth 1 -maxdepth 1 -type d | head -n 1)
-
-            if [ -n "$INNER" ] && [ -f "$INNER/package.json" ]; then
-              cp -a "$INNER"/. app/
-            fi
-          fi
-
-          test -f app/package.json
+          unzip -q huesos.zip -d app
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-
-      - name: Install dependencies
-        working-directory: app
-        run: npm install
-
-      - name: Build original web app
-        working-directory: app
-        run: npm run build
-
-      - name: Show build output
-        working-directory: app
-        run: |
-          echo "=== Project files ==="
-          ls -la
-
-          echo "=== Build directories ==="
-          find . -maxdepth 4 -type d \
-            \( -name ".output" -o -name "dist" -o -name "build" -o -name "out" -o -name ".vercel" \) \
-            -print
-
-          echo "=== index.html files ==="
-          find . -maxdepth 6 -type f -name "index.html" -print
-
-      - name: Install Capacitor
-        working-directory: app
-        run: |
-          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
-
-      - name: Prepare Capacitor
-        working-directory: app
-        run: |
-          rm -rf android-web
-          mkdir -p android-web
-
-          if [ -d ".output/public" ]; then
-            echo "Using .output/public"
-            cp -a .output/public/. android-web/
-
-          elif [ -d ".vercel/output/static" ]; then
-            echo "Using .vercel/output/static"
-            cp -a .vercel/output/static/. android-web/
-
-          elif [ -d "dist" ] && [ -f "dist/index.html" ]; then
-            echo "Using dist"
-            cp -a dist/. android-web/
-
-          elif [ -d "build" ] && [ -f "build/index.html" ]; then
-            echo "Using build"
-            cp -a build/. android-web/
-
-          elif [ -d "out" ] && [ -f "out/index.html" ]; then
-            echo "Using out"
-            cp -a out/. android-web/
-
-          else
-            echo "ERROR: Web build output directory not found"
-            echo "Available directories:"
-            find . -maxdepth 4 -type d \
-              \( -name ".output" -o -name "dist" -o -name "build" -o -name "out" -o -name ".vercel" \) \
-              -print
-
-            echo "Available index.html files:"
-            find . -maxdepth 6 -type f -name "index.html" -print
-
-            exit 1
-          fi
-
-          echo "=== android-web contents ==="
-          find android-web -maxdepth 3 -type f | head -100
-
-          cat > capacitor.config.json <<'EOF'
-          {
-            "appId": "com.telechat.app",
-            "appName": "TeleChat",
-            "webDir": "android-web",
-            "server": {
-              "androidScheme": "https"
-            }
-          }
-          EOF
-
-      - name: Add Android
-        working-directory: app
-        run: npx cap add android
-
-      - name: Sync Android
-        working-directory: app
-        run: npx cap sync android
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -131,14 +26,47 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      - name: Build APK
-        working-directory: app/android
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Setup Gradle 9.5.1
+        uses: gradle/actions/setup-gradle@v4
         with:
-          name: TeleChat-Original-APK
-          path: app/android/app/build/outputs/apk/debug/app-debug.apk
+          gradle-version: '9.5.1'
+
+      - name: Install web dependencies
+        working-directory: app/TeleChat-CloudBuild/TeleChat-Android/web
+        run: |
+          npm install
+
+      - name: Prepare Android build
+        working-directory: app/TeleChat-CloudBuild/TeleChat-Android
+        run: |
+          chmod +x build-android.sh
+
+          echo "=== Build script before patch ==="
+          cat build-android.sh
+
+          sed -i 's#\./gradlew#gradle#g' build-android.sh
+          sed -i 's#gradlew#gradle#g' build-android.sh
+
+          echo "=== Build script after patch ==="
+          cat build-android.sh
+
+      - name: Fix JVM target
+        working-directory: app/TeleChat-CloudBuild/TeleChat-Android
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          for p in Path("android").rglob("*.gradle.kts"):
+              s = p.read_text()
+
+              if "compileOptions {" in s:
+                  s = s.replace(
+                      "compileOptions {",
+                      """compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_21
+                  targetCompatibility = JavaVersion.VERSION_21"""
+                  )
+
+              p.write_text(s)
+              print("Patched:", p)
+          PY
