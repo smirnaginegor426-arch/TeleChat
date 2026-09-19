@@ -11,25 +11,54 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract TeleChat
+      - name: Find and extract Android project
         run: |
-          echo "=== ZIP files ==="
-          find . -type f -iname "*.zip" -print
+          echo "=== ZIP files in repository ==="
+          find . -maxdepth 2 -type f -iname "*.zip" -print
 
-          ZIP_FILE=$(find . -type f -iname "*.zip" | head -n 1)
+          echo ""
+          echo "=== Searching ZIP archives for build-android.sh ==="
 
-          if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: ZIP file not found!"
+          PROJECT_ZIP=""
+
+          while IFS= read -r ZIP; do
+            echo ""
+            echo "Checking: $ZIP"
+
+            if unzip -l "$ZIP" | grep -q "build-android.sh"; then
+              PROJECT_ZIP="$ZIP"
+              echo "FOUND Android project in: $ZIP"
+              break
+            else
+              echo "No build-android.sh found in this ZIP"
+            fi
+          done < <(find . -maxdepth 2 -type f -iname "*.zip")
+
+          if [ -z "$PROJECT_ZIP" ]; then
+            echo ""
+            echo "ERROR: No ZIP containing build-android.sh was found!"
+            echo ""
+            echo "=== ZIP contents ==="
+
+            while IFS= read -r ZIP; do
+              echo ""
+              echo "----- $ZIP -----"
+              unzip -l "$ZIP" | head -80
+            done < <(find . -maxdepth 2 -type f -iname "*.zip")
+
             exit 1
           fi
 
-          echo "Using ZIP: $ZIP_FILE"
+          echo ""
+          echo "Using Android project ZIP:"
+          echo "$PROJECT_ZIP"
 
           mkdir -p app
-          unzip -q "$ZIP_FILE" -d app
+          unzip -q "$PROJECT_ZIP" -d app
 
+          echo ""
           echo "=== Extracted structure ==="
-          find app -maxdepth 6 -type f | head -200
+          find app -maxdepth 8 -type f -print
 
       - name: Find TeleChat project
         run: |
@@ -38,7 +67,7 @@ jobs:
           BUILD_SCRIPT=$(find app -type f -name "build-android.sh" | head -n 1)
 
           if [ -z "$BUILD_SCRIPT" ]; then
-            echo "ERROR: build-android.sh not found!"
+            echo "ERROR: build-android.sh not found after extraction!"
             exit 1
           fi
 
@@ -47,6 +76,7 @@ jobs:
           echo "Build script:"
           echo "$BUILD_SCRIPT"
 
+          echo ""
           echo "Project directory:"
           echo "$PROJECT_DIR"
 
@@ -57,13 +87,13 @@ jobs:
           if [ ! -d "$WEB_DIR" ]; then
             echo "ERROR: web directory not found:"
             echo "$WEB_DIR"
+            echo ""
+            echo "=== Project contents ==="
+            find "$PROJECT_DIR" -maxdepth 4 -type f -print
             exit 1
           fi
 
           echo "WEB_DIR=$WEB_DIR" >> "$GITHUB_ENV"
-
-          echo "=== Web directory ==="
-          ls -lah "$WEB_DIR"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -84,7 +114,6 @@ jobs:
       - name: Install web dependencies
         working-directory: ${{ env.WEB_DIR }}
         run: |
-          echo "Installing dependencies..."
           npm install
 
       - name: Prepare Android build
@@ -128,14 +157,15 @@ jobs:
               print("Patched:", p)
           PY
 
-      - name: Show project structure
+      - name: Show Android configuration
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          echo "=== PROJECT ==="
-          pwd
+          echo "=== Android Gradle files ==="
+          find android -name "*.gradle.kts" -type f -print
 
-          echo "=== FILES ==="
-          find . -maxdepth 4 -type f | sort
+          echo ""
+          echo "=== app/build.gradle.kts ==="
+          cat android/app/build.gradle.kts
 
       - name: Build Android
         working-directory: ${{ env.PROJECT_DIR }}
